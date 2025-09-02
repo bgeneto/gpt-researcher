@@ -60,9 +60,7 @@ class FireCrawl:
             if hasattr(response, "error") or (
                 isinstance(response, dict) and "error" in response
             ):
-                error_msg = getattr(
-                    response, "error", response.get("error", "unknown error")
-                )
+                error_msg = getattr(response, "error", "unknown error")
                 print("Scrape failed! : " + str(error_msg))
                 return "", [], ""
             elif (
@@ -80,12 +78,12 @@ class FireCrawl:
             content = getattr(
                 response,
                 "content",
-                getattr(response, "markdown", response.get("markdown", "")),
+                getattr(response, "markdown", ""),
             )
             title = (
-                getattr(response.metadata, "title", response.metadata.get("title", ""))
+                getattr(response.metadata, "title", "Unknown Title")
                 if hasattr(response, "metadata")
-                else ""
+                else "Unknown Title"
             )
 
             # Parse the HTML content of the response to create a BeautifulSoup object for the utility functions
