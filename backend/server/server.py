@@ -209,9 +209,25 @@ async def list_files():
     return {"files": files}
 
 
+from pydantic import BaseModel
+
+
+# Add Multi-Agent request model
+class MultiAgentRequest(BaseModel):
+    query: str = "Is AI in a hype cycle?"
+    tone: str = "Objective"
+    max_sections: int = 3
+    verbose: bool = False
+    include_human_feedback: bool = False
+    follow_guidelines: bool = False
+    model: str = "gpt-4o"
+
+
 @app.post("/api/multi_agents")
-async def run_multi_agents():
-    return await execute_multi_agents(manager)
+async def run_multi_agents(request: MultiAgentRequest):
+    """Execute multi-agent research with user-provided parameters"""
+    request_data = request.dict()
+    return await execute_multi_agents(request_data, manager)
 
 
 @app.post("/upload/")
