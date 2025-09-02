@@ -63,6 +63,7 @@ const AccessReport: React.FC<AccessReportProps> = ({ accessData, chatBoxSettings
 
           <a
             href={getReportLink('md')}
+            download
             className="bg-purple-600 text-white font-medium uppercase text-sm px-6 py-3 rounded-lg shadow-md hover:shadow-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
             target="_blank"
             rel="noopener noreferrer">
