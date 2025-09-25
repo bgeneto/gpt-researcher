@@ -79,6 +79,8 @@ class SearxSearch:
                         "Invalid SEARX_AUTH format. Must be base64 encoded 'user:password'"
                     )
 
+            # log auth tuple
+            print(f"===>>> SearxNG Auth Tuple: {auth_tuple}")
             response = requests.get(
                 search_url, params=params, headers=headers, auth=auth_tuple
             )
