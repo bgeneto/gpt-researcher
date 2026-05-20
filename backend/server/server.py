@@ -227,7 +227,7 @@ class MultiAgentRequest(BaseModel):
 async def run_multi_agents(request: MultiAgentRequest):
     """Execute multi-agent research with user-provided parameters"""
     request_data = request.dict()
-    return await execute_multi_agents(request_data, manager)
+    return await execute_multi_agents(manager=manager, request_data=request_data)
 
 
 @app.post("/upload/")

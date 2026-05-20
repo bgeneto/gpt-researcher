@@ -56,35 +56,50 @@ class FireCrawl:
         try:
             response = self.firecrawl.scrape(url=self.link, formats=["markdown"])
 
-            metadata = getattr(response, "metadata", None)
-            metadata_dict = metadata if isinstance(metadata, dict) else {}
+            # --- Safe metadata access & normalization -------------------------
+            # Support both object-style (attrs) and dict-style responses.
+            if hasattr(response, "metadata"):
+                raw_metadata = response.metadata
+            elif isinstance(response, dict):
+                raw_metadata = response.get("metadata")
+            else:
+                raw_metadata = None
 
-            error = getattr(metadata, "error", None) or metadata_dict.get("error")
+            # Normalise to a plain dict for uniform field access.
+            if isinstance(raw_metadata, dict):
+                meta = raw_metadata
+            elif raw_metadata is not None:
+                meta = {k: v for k, v in vars(raw_metadata).items()}
+            else:
+                meta = {}
+
+            # --- Error / status from metadata ---------------------------------
+            error = meta.get("error")
             if error:
                 print("Scrape failed! : " + str(error))
                 return "", [], ""
 
-            status_code = (
-                getattr(metadata, "status_code", None)
-                or getattr(metadata, "statusCode", None)
-                or metadata_dict.get("status_code")
-                or metadata_dict.get("statusCode")
-            )
-            if status_code and status_code != 200:
+            status_code = meta.get("status_code") or meta.get("statusCode")
+            if status_code and int(status_code) != 200:
                 print(f"Scrape failed! Status code: {status_code}")
                 return "", [], ""
 
-            content = (
-                getattr(response, "markdown", None)
-                or getattr(response, "content", None)
-                or (response.get("markdown") if isinstance(response, dict) else "")
-                or (response.get("content") if isinstance(response, dict) else "")
-            )
-            title = (
-                getattr(metadata, "title", None)
-                or metadata_dict.get("title")
-                or "Unknown Title"
-            )
+            # --- Content extraction -------------------------------------------
+            # Try object attrs first, then fall back to dict lookups.
+            content = getattr(response, "markdown", None) or getattr(response, "content", None)
+            if not content and isinstance(response, dict):
+                content = response.get("markdown") or response.get("content") or ""
+
+            # --- Title extraction ---------------------------------------------
+            # Prefer metadata.title; fall back to response.body/origin.title.
+            title = meta.get("title")
+            if not title:
+                if hasattr(response, "body") and hasattr(response.body, "origin"):
+                    title = getattr(response.body.origin, "title", None)
+            if not title and isinstance(response, dict):
+                title = response.get("title") or response.get("metadata", {}).get("title")
+            if not title:
+                title = "Unknown Title"
 
             # Parse the HTML content of the response to create a BeautifulSoup object for the utility functions
             response_bs = self.session.get(self.link, timeout=4)

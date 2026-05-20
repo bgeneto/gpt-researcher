@@ -2,8 +2,13 @@ import os
 import json
 import requests
 import base64
+import binascii
+import logging
 from typing import List, Dict
 from urllib.parse import urljoin
+
+
+logger = logging.getLogger(__name__)
 
 
 class SearxSearch:
@@ -71,16 +76,17 @@ class SearxSearch:
             if self.auth:
                 # Decode base64 user:password and create auth tuple
                 try:
-                    decoded_auth = base64.b64decode(self.auth).decode("utf-8")
+                    decoded_auth = base64.b64decode(self.auth, validate=True).decode(
+                        "utf-8"
+                    )
                     username, password = decoded_auth.split(":", 1)
                     auth_tuple = (username, password)
-                except (ValueError, UnicodeDecodeError):
+                    logger.debug("Searx auth enabled")
+                except (binascii.Error, ValueError, UnicodeDecodeError):
                     raise Exception(
                         "Invalid SEARX_AUTH format. Must be base64 encoded 'user:password'"
                     )
 
-            # log auth tuple
-            print(f"===>>> SearxNG Auth Tuple: {auth_tuple}")
             response = requests.get(
                 search_url, params=params, headers=headers, auth=auth_tuple
             )

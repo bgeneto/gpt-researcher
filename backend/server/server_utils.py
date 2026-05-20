@@ -9,6 +9,9 @@ from typing import Awaitable, Dict, List, Any
 from fastapi.responses import JSONResponse, FileResponse
 from gpt_researcher.document.document import DocumentLoader
 from gpt_researcher import GPTResearcher
+from gpt_researcher.actions import stream_output
+from gpt_researcher.utils.enum import Tone
+from multi_agents.main import run_research_task
 from utils import write_md_to_pdf, write_md_to_word, write_text_to_md
 from pathlib import Path
 from datetime import datetime
@@ -311,10 +314,30 @@ async def handle_file_deletion(filename: str, DOC_PATH: str) -> JSONResponse:
         return JSONResponse(status_code=404, content={"message": "File not found"})
 
 
-async def execute_multi_agents(manager) -> Any:
+def _get_tone(tone: Any) -> Tone:
+    if isinstance(tone, Tone):
+        return tone
+    if isinstance(tone, str):
+        return Tone.__members__.get(tone, Tone.Objective)
+    return Tone.Objective
+
+
+async def execute_multi_agents(manager, request_data: dict | None = None) -> Any:
+    if isinstance(manager, dict):
+        manager, request_data = request_data, manager
+
+    request_data = request_data or {}
+    if manager is None or not hasattr(manager, "active_connections"):
+        return JSONResponse(status_code=400, content={"message": "No WebSocket manager available"})
+
     websocket = manager.active_connections[0] if manager.active_connections else None
     if websocket:
-        report = await run_research_task("Is AI in a hype cycle?", websocket, stream_output)
+        report = await run_research_task(
+            request_data.get("query", "Is AI in a hype cycle?"),
+            websocket,
+            stream_output,
+            tone=_get_tone(request_data.get("tone")),
+        )
         return {"report": report}
     else:
         return JSONResponse(status_code=400, content={"message": "No active WebSocket connection"})

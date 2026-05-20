@@ -18,8 +18,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from pydantic import BaseModel, ConfigDict
 
-# Add the parent directory to sys.path to make sure we can import from server
-sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
+# Add backend and repo root to sys.path for server and multi_agents imports.
+backend_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+repo_root = os.path.abspath(os.path.dirname(backend_dir))
+for path in (backend_dir, repo_root):
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 from server.websocket_manager import WebSocketManager
 from server.server_utils import (
