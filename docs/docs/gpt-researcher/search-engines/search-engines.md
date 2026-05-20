@@ -95,4 +95,29 @@ SERPER_TIME_RANGE=qdr:w            # Time filter (qdr:h, qdr:d, qdr:w, qdr:m, qd
 SERPER_EXCLUDE_SITES=youtube.com   # Exclude sites (comma-separated)
 ```
 
+### Searx
+
+To use [Searx](https://searx.github.io/searx/) as your search engine:
+
+1. Find a public Searx instance at [searx.space](https://searx.space/) or set up your own
+2. Set the required environment variables:
+
+```bash
+RETRIEVER=searx
+SEARX_URL=https://your-searx-instance.com/
+```
+
+**Optional Configuration for authenticated instances:**
+
+If your Searx instance requires basic authentication, set the `SEARX_AUTH` environment variable with base64 encoded credentials:
+
+```bash
+SEARX_AUTH=base64_encoded_user:password
+```
+
+To generate the base64 encoded credentials, you can use:
+```bash
+echo -n "username:password" | base64
+```
+
 Missing a retriever? Feel free to contribute to this project by submitting issues or pull requests on our [GitHub](https://github.com/assafelovic/gpt-researcher) page.

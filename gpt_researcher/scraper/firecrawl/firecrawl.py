@@ -2,13 +2,17 @@ from bs4 import BeautifulSoup
 import os
 from ..utils import get_relevant_images
 
+
 class FireCrawl:
 
     def __init__(self, link, session=None):
         self.link = link
         self.session = session
         from firecrawl import FirecrawlApp
-        self.firecrawl = FirecrawlApp(api_key=self.get_api_key(), api_url=self.get_server_url())
+
+        self.firecrawl = FirecrawlApp(
+            api_key=self.get_api_key(), api_url=self.get_server_url()
+        )
 
     def get_api_key(self) -> str:
         """
@@ -20,7 +24,8 @@ class FireCrawl:
             api_key = os.environ["FIRECRAWL_API_KEY"]
         except KeyError:
             raise Exception(
-                "FireCrawl API key not found. Please set the FIRECRAWL_API_KEY environment variable.")
+                "FireCrawl API key not found. Please set the FIRECRAWL_API_KEY environment variable."
+            )
         return api_key
 
     def get_server_url(self) -> str:
@@ -33,7 +38,7 @@ class FireCrawl:
         try:
             server_url = os.environ["FIRECRAWL_SERVER_URL"]
         except KeyError:
-            server_url = 'https://api.firecrawl.dev'
+            server_url = "https://api.firecrawl.dev"
         return server_url
 
     def scrape(self) -> tuple:
@@ -49,22 +54,37 @@ class FireCrawl:
         """
 
         try:
-            # Fixed: Changed from scrape_url() to scrape() to match FireCrawl SDK v4.6.0+
             response = self.firecrawl.scrape(url=self.link, formats=["markdown"])
 
-            # Check if the page has been scraped successfully
-            # Fixed: Access metadata attributes directly (not as dict keys)
-            if response.metadata and response.metadata.error:
-                print("Scrape failed! : " + str(response.metadata.error))
-                return "", [], ""
-            elif response.metadata and response.metadata.status_code and response.metadata.status_code != 200:
-                print(f"Scrape failed! Status code: {response.metadata.status_code}")
+            metadata = getattr(response, "metadata", None)
+            metadata_dict = metadata if isinstance(metadata, dict) else {}
+
+            error = getattr(metadata, "error", None) or metadata_dict.get("error")
+            if error:
+                print("Scrape failed! : " + str(error))
                 return "", [], ""
 
-            # Extract the content (markdown) and title from FireCrawl response
-            # Fixed: Access attributes directly (not as dict keys)
-            content = response.markdown if response.markdown else ""
-            title = response.metadata.title if response.metadata and response.metadata.title else ""
+            status_code = (
+                getattr(metadata, "status_code", None)
+                or getattr(metadata, "statusCode", None)
+                or metadata_dict.get("status_code")
+                or metadata_dict.get("statusCode")
+            )
+            if status_code and status_code != 200:
+                print(f"Scrape failed! Status code: {status_code}")
+                return "", [], ""
+
+            content = (
+                getattr(response, "markdown", None)
+                or getattr(response, "content", None)
+                or (response.get("markdown") if isinstance(response, dict) else "")
+                or (response.get("content") if isinstance(response, dict) else "")
+            )
+            title = (
+                getattr(metadata, "title", None)
+                or metadata_dict.get("title")
+                or "Unknown Title"
+            )
 
             # Parse the HTML content of the response to create a BeautifulSoup object for the utility functions
             response_bs = self.session.get(self.link, timeout=4)
