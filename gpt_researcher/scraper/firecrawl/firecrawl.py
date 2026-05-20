@@ -54,36 +54,36 @@ class FireCrawl:
         """
 
         try:
-            response = self.firecrawl.scrape(self.link, formats=["markdown"])
+            response = self.firecrawl.scrape(url=self.link, formats=["markdown"])
 
-            # Check if the page has been scraped success
-            if hasattr(response, "error") or (
-                isinstance(response, dict) and "error" in response
-            ):
-                error_msg = getattr(response, "error", "unknown error")
-                print("Scrape failed! : " + str(error_msg))
-                return "", [], ""
-            elif (
-                hasattr(response.metadata, "statusCode")
-                and response.metadata.statusCode != 200
-            ) or (
-                isinstance(response, dict)
-                and response.get("metadata", {}).get("statusCode", 200) != 200
-            ):
-                print("Scrape failed! : " + str(response))
+            metadata = getattr(response, "metadata", None)
+            metadata_dict = metadata if isinstance(metadata, dict) else {}
+
+            error = getattr(metadata, "error", None) or metadata_dict.get("error")
+            if error:
+                print("Scrape failed! : " + str(error))
                 return "", [], ""
 
-            # Extract the content (markdown) and title from FireCrawl response
-            # Handle both attribute and dictionary access
-            content = getattr(
-                response,
-                "content",
-                getattr(response, "markdown", ""),
+            status_code = (
+                getattr(metadata, "status_code", None)
+                or getattr(metadata, "statusCode", None)
+                or metadata_dict.get("status_code")
+                or metadata_dict.get("statusCode")
+            )
+            if status_code and status_code != 200:
+                print(f"Scrape failed! Status code: {status_code}")
+                return "", [], ""
+
+            content = (
+                getattr(response, "markdown", None)
+                or getattr(response, "content", None)
+                or (response.get("markdown") if isinstance(response, dict) else "")
+                or (response.get("content") if isinstance(response, dict) else "")
             )
             title = (
-                getattr(response.metadata, "title", "Unknown Title")
-                if hasattr(response, "metadata")
-                else "Unknown Title"
+                getattr(metadata, "title", None)
+                or metadata_dict.get("title")
+                or "Unknown Title"
             )
 
             # Parse the HTML content of the response to create a BeautifulSoup object for the utility functions

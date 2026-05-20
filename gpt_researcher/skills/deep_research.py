@@ -14,9 +14,11 @@ logger = logging.getLogger(__name__)
 # Maximum words allowed in context (25k words for safety margin)
 MAX_CONTEXT_WORDS = 25000
 
-def count_words(text: str) -> int:
-    """Count words in a text string"""
-    return len(text.split())
+def count_words(text) -> int:
+    """Count words in a text string. Handles both strings and lists."""
+    if isinstance(text, list):
+        text = " ".join(str(item) for item in text)
+    return len(str(text).split())
 
 def trim_context_to_word_limit(context_list: List[str], max_words: int = MAX_CONTEXT_WORDS) -> List[str]:
     """Trim context list to stay within word limit while preserving most recent/relevant items"""
@@ -97,7 +99,12 @@ class DeepResearchSkill:
     async def generate_research_plan(self, query: str, num_questions: int = 3) -> List[str]:
         """Generate follow-up questions to clarify research direction"""
         # Get initial search results to inform query generation
-        search_results = await get_search_results(query, self.researcher.retrievers[0])
+        # Pass the researcher so MCP retriever receives cfg and mcp_configs
+        search_results = await get_search_results(
+            query,
+            self.researcher.retrievers[0],
+            researcher=self.researcher
+        )
         logger.info(f"Initial web knowledge obtained: {len(search_results)} results")
 
         # Get current time for context
@@ -194,6 +201,7 @@ Format each question on a new line starting with 'Question: '"""}
             on_progress=None
     ) -> Dict[str, Any]:
         """Conduct deep iterative research"""
+        print(f"\n📊 DEEP RESEARCH: depth={depth}, breadth={breadth}, query={query[:100]}...", flush=True)
         if learnings is None:
             learnings = []
         if citations is None:
@@ -207,7 +215,9 @@ Format each question on a new line starting with 'Question: '"""}
             on_progress(progress)
 
         # Generate search queries
+        print(f"🔎 Generating {breadth} search queries...", flush=True)
         serp_queries = await self.generate_search_queries(query, num_queries=breadth)
+        print(f"✅ Generated {len(serp_queries)} queries: {[q['query'] for q in serp_queries]}", flush=True)
         progress.total_queries = len(serp_queries)
 
         all_learnings = learnings.copy()
@@ -235,7 +245,10 @@ Format each question on a new line starting with 'Question: '"""}
                         websocket=self.websocket,
                         config_path=self.config_path,
                         headers=self.headers,
-                        visited_urls=self.visited_urls
+                        visited_urls=self.visited_urls,
+                        # Propagate MCP configuration to nested researchers
+                        mcp_configs=self.researcher.mcp_configs,
+                        mcp_strategy=self.researcher.mcp_strategy
                     )
 
                     # Conduct research
@@ -263,12 +276,15 @@ Format each question on a new line starting with 'Question: '"""}
                         'followUpQuestions': results['followUpQuestions'],
                         'researchGoal': serp_query['researchGoal'],
                         'citations': results['citations'],
-                        'context': context if context else "",
+                        'context': "\n".join(context) if isinstance(context, list) else (context or ""),
                         'sources': sources if sources else []
                     }
 
                 except Exception as e:
+                    import traceback
+                    error_details = traceback.format_exc()
                     logger.error(f"Error processing query '{serp_query['query']}': {str(e)}")
+                    print(f"\n❌ DEEP RESEARCH ERROR: {str(e)}\n{error_details}", flush=True)
                     return None
 
         # Process queries concurrently with limit
@@ -340,6 +356,7 @@ Format each question on a new line starting with 'Question: '"""}
 
     async def run(self, on_progress=None) -> str:
         """Run the deep research process and generate final report"""
+        print(f"\n🔍 DEEP RESEARCH: Starting with breadth={self.breadth}, depth={self.depth}, concurrency={self.concurrency_limit}", flush=True)
         start_time = time.time()
 
         # Log initial costs
