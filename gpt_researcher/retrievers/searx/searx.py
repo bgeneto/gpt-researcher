@@ -1,8 +1,14 @@
 import os
 import json
 import requests
+import base64
+import binascii
+import logging
 from typing import List, Dict
 from urllib.parse import urljoin
+
+
+logger = logging.getLogger(__name__)
 
 
 class SearxSearch():
@@ -18,6 +24,7 @@ class SearxSearch():
         self.query = query
         self.query_domains = query_domains or None
         self.base_url = self.get_searxng_url()
+        self.auth = self.get_searxng_auth()
 
     def get_searxng_url(self) -> str:
         """
@@ -35,6 +42,14 @@ class SearxSearch():
                 "SearxNG URL not found. Please set the SEARX_URL environment variable. "
                 "You can find public instances at https://searx.space/"
             )
+
+    def get_searxng_auth(self) -> str | None:
+        """
+        Gets the SearxNG basic auth credentials from environment variables
+        Returns:
+            str or None: Base64 encoded user:password for basic auth, or None if not set
+        """
+        return os.environ.get("SEARX_AUTH")
 
     def search(self, max_results: int = 10) -> List[Dict[str, str]]:
         """
@@ -54,10 +69,28 @@ class SearxSearch():
         }
 
         try:
+            headers = {'Accept': 'application/json'}
+            auth_tuple = None
+
+            if self.auth:
+                # Decode base64 user:password and create auth tuple.
+                try:
+                    decoded_auth = base64.b64decode(self.auth, validate=True).decode(
+                        "utf-8"
+                    )
+                    username, password = decoded_auth.split(":", 1)
+                    auth_tuple = (username, password)
+                    logger.debug("Searx auth enabled")
+                except (binascii.Error, ValueError, UnicodeDecodeError):
+                    raise Exception(
+                        "Invalid SEARX_AUTH format. Must be base64 encoded 'user:password'"
+                    )
+
             response = requests.get(
                 search_url,
                 params=params,
-                headers={'Accept': 'application/json'}
+                headers=headers,
+                auth=auth_tuple
             )
             response.raise_for_status()
             results = response.json()

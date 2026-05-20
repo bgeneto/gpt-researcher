@@ -9,6 +9,8 @@ import pytest
 import tempfile
 import os
 import shutil
+import base64
+import logging
 from unittest.mock import Mock, MagicMock
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
@@ -23,6 +25,7 @@ from backend.server.server_utils import (
     handle_file_upload, 
     handle_file_deletion
 )
+from gpt_researcher.retrievers.searx.searx import SearxSearch
 
 
 class TestSecureFilename:
@@ -243,6 +246,56 @@ class TestHandleFileUpload:
             assert os.path.exists(result["path"])
         finally:
             backend.server.server_utils.DocumentLoader = original_loader
+
+
+class TestSearxAuthSecurity:
+    """Test that Searx auth handling does not leak credentials."""
+
+    def test_search_does_not_print_auth_tuple(self, monkeypatch, capsys, caplog):
+        """Test that valid auth is used without leaking credentials to stdout."""
+        encoded_auth = base64.b64encode(b"demo-user:demo-pass").decode("ascii")
+        monkeypatch.setenv("SEARX_URL", "https://example.com")
+        monkeypatch.setenv("SEARX_AUTH", encoded_auth)
+
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "results": [{"url": "https://result.example", "content": "snippet"}]
+        }
+        mock_response.raise_for_status.return_value = None
+
+        requests_get = Mock(return_value=mock_response)
+        monkeypatch.setattr(
+            "gpt_researcher.retrievers.searx.searx.requests.get", requests_get
+        )
+        caplog.set_level(logging.DEBUG)
+
+        results = SearxSearch("test query").search()
+
+        assert results == [{"href": "https://result.example", "body": "snippet"}]
+        assert capsys.readouterr().out == ""
+        assert "demo-user" not in caplog.text
+        assert "demo-pass" not in caplog.text
+        assert "Searx auth enabled" in caplog.text
+        requests_get.assert_called_once()
+        assert requests_get.call_args.kwargs["auth"] == ("demo-user", "demo-pass")
+
+    def test_search_rejects_invalid_base64_auth(self, monkeypatch):
+        """Test that malformed base64 auth is rejected before making a request."""
+        monkeypatch.setenv("SEARX_URL", "https://example.com")
+        monkeypatch.setenv("SEARX_AUTH", "not-valid-base64!!!")
+
+        requests_get = Mock()
+        monkeypatch.setattr(
+            "gpt_researcher.retrievers.searx.searx.requests.get", requests_get
+        )
+
+        with pytest.raises(
+            Exception,
+            match="Invalid SEARX_AUTH format. Must be base64 encoded 'user:password'",
+        ):
+            SearxSearch("test query").search()
+
+        requests_get.assert_not_called()
 
 
 class TestHandleFileDeletion:
